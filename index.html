@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Treinador de Cores de Resistores</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#121a2a; --ink:#eaf2ff; --muted:#a7b3ca; --accent:#4f8cff;
+      --ok:#2ecc71; --err:#ff5b5b; --gold:#c9a227; --silver:#c0c0c0;
+    }
+    html,body{height:100%;}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Inter,Arial; color:var(--ink); background:radial-gradient(1200px 700px at 80% -10%, #1b2743 0%, #0b1220 55%);} 
+    .container{max-width:1100px;margin:32px auto;padding:16px}
+    .card{background:rgba(255,255,255,0.03); backdrop-filter: blur(6px); border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .row{display:flex; gap:18px; flex-wrap:wrap; align-items:center}
+    .row.wide{gap:28px}
+    .h1{font-size:clamp(22px,2.8vw,36px); font-weight:800; letter-spacing:.3px; margin:0 0 12px}
+    .sub{color:var(--muted); margin-top:0}
+    .pill{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.08); color:var(--muted)}
+    .btn{appearance:none; border:0; border-radius:14px; padding:12px 16px; font-weight:700; color:#0b1220; background:var(--ink); cursor:pointer; transition:.15s transform,.2s opacity;}
+    .btn:hover{transform:translateY(-1px)}
+    .btn.secondary{background:#213152; color:var(--ink); border:1px solid rgba(255,255,255,.08)}
+    .btn.ghost{background:transparent; color:var(--ink); border:1px solid rgba(255,255,255,.18)}
+    .btn.ok{background:var(--ok); color:#08130b}
+    .btn.err{background:var(--err); color:#2b0b0b}
+    .input{background:#0f1730; color:var(--ink); border:1px solid rgba(255,255,255,.08); padding:12px 14px; border-radius:12px; font-size:16px; min-width:260px}
+    .hint{color:var(--muted); font-size:14px}
+    .score{font-variant-numeric:tabular-nums; font-weight:800}
+    .res{
+      margin-top:16px; font-weight:700;
+    }
+    .res.ok{color:var(--ok)}
+    .res.err{color:var(--err)}
+    .toggle{display:inline-flex; background:#0f1730; border:1px solid rgba(255,255,255,.08); border-radius:12px; overflow:hidden}
+    .toggle button{padding:10px 12px; color:var(--muted); background:transparent; border:0; cursor:pointer}
+    .toggle button.active{background:#243356; color:var(--ink); font-weight:800}
+
+    /* Color chips */
+    .chip-grid{display:grid; grid-template-columns:repeat(6, minmax(120px,1fr)); gap:10px; margin-top:10px}
+    .chip{display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; background:#0f1730; border:1px solid rgba(255,255,255,.08)}
+    .swatch{width:22px;height:22px;border-radius:6px;border:2px solid rgba(0,0,0,.25)}
+
+    /* SVG area */
+    .stage{display:flex; justify-content:center; align-items:center; padding:20px; background:#0f1730; border-radius:16px; border:1px solid rgba(255,255,255,.06)}
+    svg{max-width:100%; height:auto}
+
+    @media (max-width:800px){.chip-grid{grid-template-columns:repeat(3, minmax(120px,1fr));}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="row wide" style="justify-content:space-between">
+        <div>
+          <h1 class="h1">Treinador de Cores de Resistores</h1>
+          <p class="sub">Adivinhe o valor em Ω digitando <strong>número + unidade</strong> (ex.: <em>4700</em>, <em>4.7k</em>, <em>1M</em>). Depois confirme. O app fala se você acertou e gera outro resistor aleatório.</p>
+          <div class="row">
+            <span class="pill">Bandas:
+              <span class="toggle" id="bandsToggle">
+                <button data-bands="4" class="active">4</button>
+                <button data-bands="5">5</button>
+              </span>
+            </span>
+            <span class="pill">Tolerância aleatória</span>
+            <span class="pill">Atalhos: <kbd>Enter</kbd> verificar • <kbd>N</kbd> novo • <kbd>?</kbd> mostrar</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="pill">Acertos: <span class="score" id="scoreRight">0</span></div>
+          <div class="pill">Erros: <span class="score" id="scoreWrong">0</span></div>
+        </div>
+      </div>
+
+      <div class="stage" aria-label="Desenho do resistor">
+        <svg id="resistorSVG" viewBox="0 0 800 220" role="img">
+          <!-- leads -->
+          <line x1="40" y1="110" x2="230" y2="110" stroke="#d7d7d7" stroke-width="8" stroke-linecap="round"/>
+          <line x1="570" y1="110" x2="760" y2="110" stroke="#d7d7d7" stroke-width="8" stroke-linecap="round"/>
+          <!-- body -->
+          <rect x="230" y="60" rx="28" ry="28" width="340" height="100" fill="#e9d6b2" stroke="#bfa782" stroke-width="3"/>
+          <!-- bands will be injected here -->
+        </svg>
+      </div>
+
+      <div class="row" style="margin-top:16px">
+        <input id="guess" class="input" placeholder="Digite o valor (ex.: 4.7k, 4700, 1M)" autocomplete="off" />
+        <button class="btn" id="checkBtn">Verificar</button>
+        <button class="btn secondary" id="showBtn">Mostrar resposta</button>
+        <button class="btn ghost" id="nextBtn">Novo padrão</button>
+      </div>
+      <div id="result" class="res" aria-live="polite"></div>
+
+      <details style="margin-top:18px">
+        <summary class="hint">Dicas de entrada & formatação</summary>
+        <div class="hint">
+          Você pode digitar apenas números (em Ω) ou usar sufixos: <strong>k</strong> (kilo), <strong>M</strong> (mega), <strong>G</strong> (giga). Exemplos: <code>220</code>, <code>3.3k</code>, <code>47k</code>, <code>1M</code>, <code>2.2M</code>.
+          A verificação considera tolerância; pequenos arredondamentos são aceitos.
+        </div>
+      </details>
+    </div>
+
+    <div class="card" style="margin-top:22px">
+      <h2 style="margin-top:0">Tabela rápida de cores</h2>
+      <div class="chip-grid" id="colorTable"></div>
+      <p class="hint">Dígitos: Preto 0, Marrom 1, Vermelho 2, Laranja 3, Amarelo 4, Verde 5, Azul 6, Violeta 7, Cinza 8, Branco 9. Multiplicador inclui Ouro (×0,1) e Prata (×0,01). Tolerâncias comuns: Marrom ±1%, Vermelho ±2%, Ouro ±5%, Prata ±10%.</p>
+    </div>
+  </div>
+
+  <script>
+    // ======= Dados de cores =======
+    const COLORS = [
+      {name:'Preto',   hex:'#000000', digit:0, multExp:0},
+      {name:'Marrom',  hex:'#5b2d12', digit:1, multExp:1, tol:1},
+      {name:'Vermelho',hex:'#c0392b', digit:2, multExp:2, tol:2},
+      {name:'Laranja', hex:'#e67e22', digit:3, multExp:3},
+      {name:'Amarelo', hex:'#ffff0f', digit:4, multExp:4},
+      {name:'Verde',   hex:'#27ae60', digit:5, multExp:5, tol:0.5},
+      {name:'Azul',    hex:'#2980b9', digit:6, multExp:6, tol:0.25},
+      {name:'Violeta', hex:'#8e44ad', digit:7, multExp:7, tol:0.1},
+      {name:'Cinza',   hex:'#7f8c8d', digit:8, multExp:8, tol:0.05},
+      {name:'Branco',  hex:'#ecf0f1', digit:9, multExp:9},
+      {name:'Ouro',    hex:'#c9a227', multExp:-1, tol:5},
+      {name:'Prata',   hex:'#c0c0c0', multExp:-2, tol:10}
+    ];
+
+    const MULT_COLORS = COLORS.filter(c => c.hasOwnProperty('multExp'));
+    const DIGIT_COLORS = COLORS.filter(c => c.hasOwnProperty('digit'));
+    const TOL_COLORS_4 = COLORS.filter(c => [1,2,5,10,0.5,0.25,0.1,0.05].includes(c.tol));
+
+    // ======= Estado =======
+    let current = null; // {bands:[c1,c2,c3?,mult,tol], value, tol}
+    let bandsCount = 4;
+    let score = {right:0, wrong:0};
+
+    // ======= Util =======
+    function randInt(min,max){return Math.floor(Math.random()*(max-min+1))+min}
+    function pick(arr){return arr[randInt(0,arr.length-1)]}
+
+    function engFmt(value){
+      const abs = Math.abs(value);
+      let unit = 'Ω', scaled = value;
+      if (abs >= 1e9){unit='GΩ'; scaled=value/1e9}
+      else if (abs >= 1e6){unit='MΩ'; scaled=value/1e6}
+      else if (abs >= 1e3){unit='kΩ'; scaled=value/1e3}
+      else {unit='Ω'; scaled=value}
+      // Use até 3 sig digits
+      const str = (Math.round(scaled*100)/100).toString();
+      return str + ' ' + unit;
+    }
+
+    function parseGuess(text){
+      if(!text) return NaN;
+      text = (''+text)
+        .trim()
+        .replace(/\s+/g,'')         // remove espaços internos
+        .replace(/[ΩΩ]/gi,'')        // remove símbolo ohm
+        .replace(/ohms?/gi,'')       // remove a palavra ohm/ohms
+        .replace(',', '.');          // vírgula -> ponto
+
+      // Número inteiro ou decimal + sufixo opcional (k, M, G)
+      const m = text.match(/^([0-9]+(?:\.[0-9]+)?)([kKmMgG]?)$/);
+      if(!m) return NaN;
+
+      let v = parseFloat(m[1]);
+      const suffix = m[2].toUpperCase();
+      if(suffix==='K') v *= 1e3;
+      else if(suffix==='M') v *= 1e6;
+      else if(suffix==='G') v *= 1e9;
+
+      return v;
+    }
+
+    function digitsFromValue(value, bands){
+      // Not used; we generate from digits. Kept for potential future use.
+    }
+
+    // ======= Geração =======
+    function genResistor(){
+      bandsCount = document.querySelector('#bandsToggle .active').dataset.bands|0;
+      // Choose digits
+      let d1 = pick(DIGIT_COLORS.slice(1,10)); // 1..9
+      let d2 = pick(DIGIT_COLORS); // 0..9
+      let d3 = pick(DIGIT_COLORS);
+
+      // Multiplier exponent between -2 and 6 (0.01 to 1M)
+      const exp = randInt(-2, 6);
+      const mult = MULT_COLORS.find(c=>c.multExp===exp) || MULT_COLORS.find(c=>c.multExp===0);
+
+      // Tolerance choices more comuns
+      const tolPool = bandsCount===4 ? TOL_COLORS_4 : TOL_COLORS_4.filter(c=>![COLORS[10], COLORS[11]].includes(c));
+      const tolColor = pick(tolPool);
+
+      let digits = bandsCount===4 ? (d1.digit*10 + d2.digit) : (d1.digit*100 + d2.digit*10 + d3.digit);
+      let value = digits * Math.pow(10, exp);
+
+      current = {
+        bands: bandsCount===4 ? [d1,d2,mult,tolColor] : [d1,d2,d3,mult,tolColor],
+        value, tol: tolColor.tol
+      };
+      drawBands();
+      document.getElementById('result').textContent='';
+      document.getElementById('guess').value='';
+      document.getElementById('guess').focus();
+    }
+
+    // ======= Desenho =======
+    function drawBands(){
+      const svg = document.getElementById('resistorSVG');
+      // remove previous bands
+      [...svg.querySelectorAll('.band')].forEach(n=>n.remove());
+      const positions4 = [260, 315, 420, 520]; // x centers for 4 bands
+      const positions5 = [255, 305, 355, 435, 520];
+      const pos = (current.bands.length===4)?positions4:positions5;
+      const widths = (current.bands.length===4)?[24,24,24,16]:[20,20,20,22,16];
+
+      current.bands.forEach((c, i)=>{
+        const x = pos[i]-widths[i]/2;
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('class','band');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', 64);
+        rect.setAttribute('width', widths[i]);
+        rect.setAttribute('height', 92);
+        rect.setAttribute('rx', 6); rect.setAttribute('ry', 6);
+        rect.setAttribute('fill', c.hex);
+        rect.setAttribute('stroke', 'rgba(0,0,0,.25)');
+        rect.setAttribute('stroke-width', '2');
+        svg.appendChild(rect);
+      });
+    }
+
+    // ======= Verificação =======
+    function check(){
+      const text = document.getElementById('guess').value;
+      const guess = parseGuess(text);
+      if(!isFinite(guess)){
+        feedback('Entrada inválida. Ex.: 4.7k, 4700, 1M', 'err');
+        speak('Entrada inválida');
+        return;
+      }
+      const target = current.value;
+      const tol = (current.tol ?? 5) / 100; // ex.: 0.05
+      const low = target * (1 - tol);
+      const high = target * (1 + tol);
+
+      if(guess >= low && guess <= high){
+        score.right++; updateScore();
+        feedback('✅ Acertou! Valor: ' + engFmt(target) + ` (±${current.tol}%)`, 'ok');
+        speak('Acertou!');
+        setTimeout(genResistor, 800);
+      } else {
+        score.wrong++; updateScore();
+        feedback('❌ Errou. Valor correto: ' + engFmt(target) + ` (±${current.tol}%)`, 'err');
+        speak('Errou. Tente novamente.');
+      }
+    }
+
+    function feedback(msg, kind){
+      const el = document.getElementById('result');
+      el.textContent = msg;
+      el.className = 'res ' + (kind||'');
+    }
+
+    function updateScore(){
+      document.getElementById('scoreRight').textContent = score.right;
+      document.getElementById('scoreWrong').textContent = score.wrong;
+    }
+
+    function showAnswer(){
+      feedback('🔎 Resposta: ' + engFmt(current.value) + ` (±${current.tol}%)`, '');
+      speak('Resposta: ' + engFmt(current.value).replace('Ω', ' ohms'));
+    }
+
+    // ======= Fala (Web Speech) =======
+    function speak(text){
+      try{
+        const s = new SpeechSynthesisUtterance(text);
+        s.lang = 'pt-BR';
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(s);
+      }catch(e){}
+    }
+
+    // ======= UI Init =======
+    document.getElementById('checkBtn').addEventListener('click', check);
+    document.getElementById('nextBtn').addEventListener('click', genResistor);
+    document.getElementById('showBtn').addEventListener('click', showAnswer);
+    document.getElementById('guess').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ check(); }});
+    window.addEventListener('keydown', (e)=>{
+      if(e.key.toLowerCase()==='n') genResistor();
+      if(e.key==='?') showAnswer();
+    });
+
+    // Bands toggle
+    document.getElementById('bandsToggle').addEventListener('click', (e)=>{
+      if(e.target.tagName!=='BUTTON') return;
+      [...document.querySelectorAll('#bandsToggle button')].forEach(b=>b.classList.remove('active'));
+      e.target.classList.add('active');
+      genResistor();
+    });
+
+    // Build color reference table
+    (function(){
+      const tbl = document.getElementById('colorTable');
+      const list = [
+        ...DIGIT_COLORS,
+        COLORS[10], // ouro
+        COLORS[11], // prata
+      ];
+      list.forEach(c=>{
+        const div = document.createElement('div');
+        div.className='chip';
+        const sw = document.createElement('div'); sw.className='swatch'; sw.style.background=c.hex; sw.style.borderColor='rgba(0,0,0,.35)';
+        const label = document.createElement('div');
+        let txt = `<strong>${c.name}</strong>`;
+        if('digit' in c) txt += ` — dígito ${c.digit}`;
+        if('multExp' in c){ const mult = `×10^${c.multExp>=0?'+':''}${c.multExp}`; txt += ` • mult ${mult}`; }
+        if('tol' in c) txt += ` • ±${c.tol}%`;
+        label.innerHTML = txt;
+        div.appendChild(sw); div.appendChild(label); tbl.appendChild(div);
+      });
+    })();
+
+    // Start
+    genResistor();
+  </script>
+</body>
+</html>
